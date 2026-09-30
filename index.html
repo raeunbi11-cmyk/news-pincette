@@ -844,6 +844,10 @@
 
         async function callGemini(prompt, isJSON = false, useSearch = false) {
             const apiKey = state.apiKey || ""; 
+            if (!apiKey) {
+                throw new Error("API 키가 없습니다. 우측 상단 ⚙️ 환경설정에서 Gemini API Key를 입력해주세요.");
+            }
+
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
             
             const payload = {
@@ -855,7 +859,8 @@
                 payload.tools = [{ "google_search": {} }];
             }
 
-            if (isJSON) {
+            // 구글 검색(Grounding)과 JSON 강제 모드가 충돌하는 것을 방지하기 위해 검색 시에는 제외
+            if (isJSON && !useSearch) {
                 payload.generationConfig = { responseMimeType: "application/json" };
             }
 
@@ -866,14 +871,21 @@
                     body: JSON.stringify(payload)
                 });
                 
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error?.message || `API 통신 오류 (상태 코드: ${response.status}) - API 키가 유효한지 확인해주세요.`);
+                }
                 
                 const result = await response.json();
                 let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 
+                if (!text) {
+                    throw new Error("AI가 응답을 반환하지 않았습니다. (검색 결과 없음 등)");
+                }
+
                 if(isJSON) {
                     try {
-                        // 수정: 앞뒤 잡담이나 마크다운 찌꺼기를 무시하고 배열 [...] 형태만 정확히 추출
+                        // 앞뒤 잡담이나 마크다운 찌꺼기를 무시하고 배열 [...] 형태만 정확히 추출
                         const jsonMatch = text.match(/\[[\s\S]*\]/); 
                         if (jsonMatch) {
                             return JSON.parse(jsonMatch[0]);
@@ -883,8 +895,8 @@
                             return JSON.parse(text);
                         }
                     } catch(e) {
-                        console.error("JSON 파싱 에러:", text, e);
-                        throw new Error("AI가 유효하지 않은 JSON 형식을 반환했습니다.");
+                        console.error("JSON 파싱 에러 원본 텍스트:", text, e);
+                        throw new Error("AI가 기사 목록을 올바른 형식(JSON)으로 정리하지 못했습니다. 다시 시도해주세요.");
                     }
                 }
                 return text;
@@ -1083,6 +1095,11 @@
         }
 
         async function fetchAndAnalyzeNews() {
+            if (!state.apiKey) {
+                alert("우측 상단 ⚙️ (톱니바퀴) 아이콘을 눌러 Gemini API Key를 먼저 저장해주세요!");
+                return;
+            }
+
             if(!state.keywords.length) {
                 alert("맞춤형 수집 기준에서 검색 키워드를 최소 1개 이상 등록해주세요.");
                 switchTab('rules');
@@ -1121,7 +1138,7 @@
 
             3. 작업 지시 (매우 중요 ⚠️):
             - 검색 도구로 찾아낸 **실제 기사**들의 제목과 요약본을 읽고 위 기준으로 0~100점 점수를 매겨.
-            - Google 검색 결과를 최대한 다양하게 탐색하여, 조건을 만족하는 기사를 **최소 5개에서 최대 15개까지** 최대한 풍성하게 찾아내어 아래 JSON 배열 형식으로만 반환해. (만약 60점 이상인 고품질 기사가 부족하다면, 50점 이상인 기사라도 포함해서 최소 5개 분량은 무조건 채워줘.)
+            - 합격 기준을 통과한 기사를 **최소 5개에서 최대 15개까지** 최대한 풍성하게 찾아내어 아래 JSON 배열 형식으로만 반환해. (만약 60점 이상이 부족하다면, 40점 이상인 기사라도 포함해서 최소 5개 분량은 무조건 채워줘.)
             - 🚨 [경고] 기사 제목(title)과 링크(url)는 절대로 지어내거나 축약하지 마! 검색 결과에 나온 원본 그대로 100% 똑같이 복사해야 하며, 해당 제목과 실제 링크가 정확히 짝을 이뤄야 해. 가짜 URL을 생성하면 안 돼.
 
             [
@@ -1136,7 +1153,7 @@
               }
             ]
             
-            위 JSON 배열 형식만 출력해.
+            위 JSON 배열 형식만 출력해. 다른 말은 덧붙이지 마.
             `;
 
             try {
@@ -1163,11 +1180,13 @@
                     saveState();
                     renderFeed();
                     renderInsights();
+                    alert(`총 ${results.length}개의 맞춤형 기사를 성공적으로 솎아냈습니다!`);
                 } else {
-                    alert("선별 기준을 통과한 기사가 없습니다. 기준을 완화해보세요.");
+                    alert("선별 기준을 통과한 기사가 없거나 AI가 데이터를 반환하지 않았습니다. 키워드나 기준을 조금 완화해보세요.");
                 }
             } catch (e) {
-                // Error handled in callGemini
+                console.error(e);
+                alert("수집 실패: " + e.message);
             } finally {
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
