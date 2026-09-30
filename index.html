@@ -849,7 +849,7 @@
             }
 
             // 무료 할당량이 가장 넉넉하고 빠른 1.5-flash 모델로 변경
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
             
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
