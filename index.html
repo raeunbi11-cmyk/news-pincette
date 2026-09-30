@@ -124,13 +124,13 @@
             <!-- Navigation Tabs -->
             <nav class="hidden md:flex space-x-1 bg-slate-100 p-1 rounded-lg">
                 <button onclick="switchTab('feed')" id="tab-btn-feed" class="tab-btn px-4 py-2 text-sm font-medium rounded-md bg-white shadow-sm text-brand-600 transition-colors">
-                    <i class="ph ph-newspaper mr-1"></i> 📰 기사 피드
+                    기사 피드
                 </button>
                 <button onclick="switchTab('rules')" id="tab-btn-rules" class="tab-btn px-4 py-2 text-sm font-medium rounded-md text-slate-600 hover:text-slate-800 hover:bg-slate-200/50 transition-colors">
-                    <i class="ph ph-sliders mr-1"></i> ⚙️ 수집 기준 관리
+                    수집 기준 관리
                 </button>
                 <button onclick="switchTab('insights')" id="tab-btn-insights" class="tab-btn px-4 py-2 text-sm font-medium rounded-md text-slate-600 hover:text-slate-800 hover:bg-slate-200/50 transition-colors">
-                    <i class="ph ph-trend-up mr-1"></i> 📈 수집 품질 관리
+                    수집 품질 관리
                 </button>
             </nav>
 
@@ -848,7 +848,8 @@
                 throw new Error("API 키가 없습니다. 우측 상단 ⚙️ 환경설정에서 Gemini API Key를 입력해주세요.");
             }
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            // 무료 할당량이 가장 넉넉하고 빠른 1.5-flash 모델로 변경
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
@@ -1122,14 +1123,14 @@
             btn.innerHTML = `<div class="spinner spinner-dark mr-2"></div> AI 실시간 웹 검색 및 심사 중...`;
             btn.disabled = true;
 
-            // 프롬프트를 가상 생성에서 '실제 검색 기반 평가'로 변경하되, 제목/URL 환각 방지 지시를 강력하게 추가
             const prompt = `
             너는 뉴스 핀셋 앱의 AI 큐레이터야.
             반드시 'Google Search' 도구를 사용하여 최신 실제 한국어 뉴스 기사를 검색해.
             
-            1. 검색 조건:
-            - 검색어: ${state.keywords.join(' OR ')}
+            1. 검색 조건 및 수집 목표:
+            - 타겟 키워드 목록: [${state.keywords.join(', ')}]
             - 기간: 최근 ${state.fetchRange}일 이내
+            - 수집량: **각 키워드당 최대 10개씩** 독립적으로 꼼꼼히 탐색하고, **전체 기사 수는 최대 50개**까지 최대한 풍성하게 수집할 것.
 
             2. 평가 기준:
             - 포함 기준 (고득점 조건): 직무(${role}), 목적(${purpose}), 상세(${focus})
@@ -1137,23 +1138,21 @@
             - 블로그(tistory, naver 등), 커뮤니티 글은 절대 제외. 공식 언론사 기사만 허용.
 
             3. 작업 지시 (매우 중요 ⚠️):
-            - 검색 도구로 찾아낸 **실제 기사**들의 제목과 요약본을 읽고 위 기준으로 0~100점 점수를 매겨.
-            - 합격 기준을 통과한 기사를 **최소 5개에서 최대 15개까지** 최대한 풍성하게 찾아내어 아래 JSON 배열 형식으로만 반환해. (만약 60점 이상이 부족하다면, 40점 이상인 기사라도 포함해서 최소 5개 분량은 무조건 채워줘.)
-            - 🚨 [경고] 기사 제목(title)과 링크(url)는 절대로 지어내거나 축약하지 마! 검색 결과에 나온 원본 그대로 100% 똑같이 복사해야 하며, 해당 제목과 실제 링크가 정확히 짝을 이뤄야 해. 가짜 URL을 생성하면 안 돼.
+            - 위 타겟 키워드들을 하나씩 개별적으로 검색하여, 평가 기준을 통과한 기사들을 모아줘.
+            - 🚨 [경고] 기사 제목(title)과 링크(url)는 절대로 지어내거나 축약하지 마! 검색 결과에 나온 원본 그대로 100% 똑같이 복사해야 해.
 
+            결과는 반드시 아래 JSON 배열 형식만 출력해. (다른 설명 절대 금지)
             [
               {
                 "id": "임의의유니크문자열(예: article_1)",
                 "source": "언론사명",
                 "date": "2026.09.30",
-                "title": "검색 결과의 실제 기사 원본 제목 (수정 절대 금지)",
-                "summary": "AI 추천 사유 및 기사 핵심 요약 (마지막에 점수 표기, 예: AI 평가: 85점)",
+                "title": "검색 결과의 실제 기사 원본 제목",
+                "summary": "핵심 요약 1문장 (마지막에 점수 표기, 예: 85점)",
                 "score": 85,
-                "url": "해당 기사의 실제 원본 링크 URL (지어내기 절대 금지)"
+                "url": "해당 기사의 실제 원본 링크 URL"
               }
             ]
-            
-            위 JSON 배열 형식만 출력해. 다른 말은 덧붙이지 마.
             `;
 
             try {
