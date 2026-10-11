@@ -356,15 +356,20 @@
     async function callGemini(prompt, isJSON = false, useSearch = false) {
         const apiKey = state.apiKey;
         if (!apiKey) throw new Error("환경설정에서 Gemini API Key를 먼저 입력해주세요.");
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        
+        // 안정적인 gemini-2.0-flash 모델 및 올바른 엔드포인트 규격 적용
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
         const payload = { contents: [{ parts: [{ text: prompt }] }] };
         if (useSearch) payload.tools = [{ "google_search": {} }];
         if (isJSON && !useSearch) payload.generationConfig = { responseMimeType: "application/json" };
 
         const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error("API 오류 (404): 엔드포인트 또는 모델명(gemini-2.0-flash)을 찾을 수 없습니다. API 키 권한을 확인해주세요.");
+            }
             if (response.status === 429) {
-                throw new Error("API 사용량 한도 초과(429 Quota Exceeded). 잠시 후 다시 시도하거나 요금제를 확인해주세요.");
+                throw new Error("API 사용량 한도 초과(429). 잠시 후 다시 시도해 주세요.");
             }
             const errData = await response.json().catch(() => ({}));
             throw new Error(errData.error?.message || `API 오류 (${response.status})`);
